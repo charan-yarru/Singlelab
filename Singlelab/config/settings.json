@@ -1,0 +1,27 @@
+{
+  "db": {
+    "driver": "{ODBC Driver 17 for SQL Server}",
+    "server": "localhost",
+    "database": "INTERFACE",
+    "username": "sa",
+    "password": "Admin@123"
+  },
+  "logging": {
+    "log_dir": "logs",
+    "level": "INFO",
+    "max_bytes": 1048576,
+    "backup_count": 5
+  },
+  "alerts": {
+    "enabled": true,
+    "smtp_host": "",
+    "smtp_port": 587,
+    "use_tls": true,
+    "username": "",
+    "password": "",
+    "from": "lims-cluster@example.com",
+    "to": [
+      "charan.y@m16labs.com"
+    ]
+  }
+}
