@@ -163,8 +163,11 @@ def parse_message(msg: bytes, machine_id: str, param_map: dict) -> List[Normaliz
 
     if protocol == "HL7":
         return parse_hl7(msg, machine_id, param_map)
-    elif protocol == "ASTM":
-        return parse_astm(msg, machine_id, param_map)
-    else:
+
+    results = parse_astm(msg, machine_id, param_map)
+    if results:
+        return results
+
+    if protocol != "ASTM":
         print(f"[parser]  Unknown protocol for machine {machine_id}")
-        return []
+    return results
