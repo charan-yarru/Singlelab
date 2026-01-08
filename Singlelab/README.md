@@ -4,6 +4,7 @@ This repository contains a Python backend and a small React frontend for a singl
 
 Overview
 - Backend: FastAPI app in `backend/app.py`. It serves a static frontend when `backend/static` exists and exposes `/api/machines`, `/api/machine-status`, and `/api/machine-samples`.
+- Listener: Unified engine auto-detects HL7 vs ASTM for both TCP and Serial transports.
 - Frontend: A Vite + React scaffold in `frontend/`. Build the frontend to produce static files in `frontend/dist`, then copy those files into `backend/static/` (or configure your deployment/static hosting).
 
 Quick start (Windows PowerShell)

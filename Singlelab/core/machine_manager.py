@@ -1,8 +1,7 @@
 import threading
 from typing import Any, Dict
 
-from communication.ASTMListener import ASTMListener
-from communication.HL7Listener import HL7Listener
+from communication.unified_listener import UnifiedListener
 from core.logging_utils import get_machine_logger
 from core.notifier import EmailNotifier
 
@@ -34,8 +33,8 @@ class MachineManager:
                 continue
 
             comm_str = str(comm)
-            protocol_display = self._display_protocol_type(comm_str, settings)
-            protocol_value = self._build_protocol_value(protocol_display)
+        protocol_display = self._display_protocol_type(comm_str, settings)
+        protocol_value = self._build_protocol_value(protocol_display)
             port_display = self._build_port_display(protocol_display, comm_str, settings)
             formatted[name] = {
                 "name": name,
@@ -84,8 +83,8 @@ class MachineManager:
     # ------------------------------------------------------------------
     def _build_protocol_value(self, protocol_display: str) -> str:
         if protocol_display == "Serial":
-            return "ASTM-Serial"
-        return "HL7-TCP"
+            return "AUTO-Serial"
+        return "AUTO-TCP"
 
     # ------------------------------------------------------------------
     def _build_port_display(self, protocol_display: str, comm: str, settings: str) -> str:
@@ -148,15 +147,13 @@ class MachineManager:
                 return {"success": True, "message": f"{name} already running", "state": self.listener_status.get(name, "Running")}
 
             config = self._prepare_listener_config(name, record)
-            listener_type = self._resolve_protocol(record, str(config.get("CommPort") or ""))
-            config["protocol"] = listener_type
-            if listener_type == "ASTM":
+            transport = self._resolve_transport(record, str(config.get("CommPort") or ""))
+            config["transport"] = transport
+            if transport == "Serial":
                 config["comm_port"] = self._format_serial_port(config.get("CommPort") or config.get("comm_port"))
             else:
                 config["comm_port"] = str(config.get("CommPort") or config.get("comm_port") or "")
-            listener = self._create_listener(listener_type, config, name)
-            if listener is None:
-                return {"success": False, "message": f"{name} protocol '{listener_type}' not supported", "state": self.listener_status.get(name, "Stopped")}
+            listener = self._create_listener(config, name)
 
             self.listener_status[name] = "Starting"
             self.active_listeners[name] = listener
@@ -226,6 +223,11 @@ class MachineManager:
         return "HL7"
 
     # ------------------------------------------------------------------
+    def _resolve_transport(self, record: Dict[str, Any], comm_str: str) -> str:
+        protocol_display = self._display_protocol_type(comm_str, str(record.get("Settings") or ""))
+        return "Serial" if protocol_display == "Serial" else "TCP"
+
+    # ------------------------------------------------------------------
     def _prepare_listener_config(self, name: str, record: Dict[str, Any]) -> Dict[str, Any]:
         config = dict(record)
         machine_id = record.get("MachineId") or record.get("machine_id") or name
@@ -246,27 +248,18 @@ class MachineManager:
         return config
 
     # ------------------------------------------------------------------
-    def _create_listener(self, listener_type: str, config: Dict[str, Any], machine_name: str):
+    def _create_listener(self, config: Dict[str, Any], machine_name: str):
         def status_callback(_machine_id, status):
             self._listener_status_callback(machine_name, status)
 
         logger = get_machine_logger(machine_name)
 
-        if listener_type == "ASTM":
-            return ASTMListener(
-                config,
-                status_callback=status_callback,
-                logger=logger,
-                notifier=self.notifier,
-            )
-        if listener_type == "HL7":
-            return HL7Listener(
-                config,
-                status_callback=status_callback,
-                logger=logger,
-                notifier=self.notifier,
-            )
-        return None
+        return UnifiedListener(
+            config,
+            status_callback=status_callback,
+            logger=logger,
+            notifier=self.notifier,
+        )
 
     # ------------------------------------------------------------------
     def _listener_status_callback(self, name: str, status: str):
