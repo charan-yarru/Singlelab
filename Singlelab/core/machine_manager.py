@@ -31,20 +31,19 @@ class MachineManager:
 
             if not name:
                 continue
+            comm_str = str(comm)
+            protocol_display = self._display_protocol_type(comm_str, settings)
+            protocol_value = self._build_protocol_value(protocol_display)
+            port_display = self._build_port_display(protocol_display, comm_str, settings)
+            formatted[name] = {
+                "name": name,
+                "protocol": protocol_value,
+                "protocol_type": protocol_display,
+                "port_display": port_display,
+            }
 
-        comm_str = str(comm)
-        protocol_display = self._display_protocol_type(comm_str, settings)
-        protocol_value = self._build_protocol_value(protocol_display)
-        port_display: str = self._build_port_display(protocol_display, comm_str, settings)
-        formatted[name] = {
-            "name": name,
-            "protocol": protocol_value,
-            "protocol_type": protocol_display,
-            "port_display": port_display,
-        }
-
-        records[name] = dict(row)
-        seen_names.add(name)
+            records[name] = dict(row)
+            seen_names.add(name)
 
         listeners_to_stop = []
         with self._lock:
