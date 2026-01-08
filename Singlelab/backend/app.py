@@ -64,10 +64,13 @@ def get_machine_samples(limit: int = 3):
     mgr.ensure_loaded()
     samples = db.get_recent_samples(limit)
     name_map = mgr.get_machine_name_map()
+    status_map = mgr.get_machine_status()
 
     response = {}
     for machine_id, entries in samples.items():
         target_name = name_map.get(machine_id, machine_id)
+        if status_map.get(target_name) != "Running":
+            continue
         response.setdefault(target_name, [])
         for entry in entries:
             updated_at = entry.get("updated_at")
