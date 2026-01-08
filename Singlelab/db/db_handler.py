@@ -246,6 +246,19 @@ class DBHandler:
             if not key or not val:
                 continue
             mapping[key.lower()] = val
+
+        def _score(keys):
+            score = 0
+            for key in keys:
+                if key and key.isalnum() and len(key) <= 5:
+                    score += 1
+            return score
+
+        current_score = _score(mapping.keys())
+        swapped = {value.lower(): key for key, value in mapping.items() if value}
+        swapped_score = _score(swapped.keys())
+        if swapped and swapped_score > current_score:
+            return swapped
         return mapping
 
     # ------------------------------------------------------------------
