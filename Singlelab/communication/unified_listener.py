@@ -107,8 +107,16 @@ class UnifiedListener:
         buffer = ""
         while self.running:
             if self._serial.in_waiting > 0:
-                chunk = self._serial.read(self._serial.in_waiting).decode(errors="ignore")
-                buffer += chunk
+                chunk = self._serial.read(self._serial.in_waiting)
+                for byte in chunk:
+                    if byte == 0x05:  # ENQ
+                        self._log_info("ASTM ENQ received")
+                        self._send_serial_ack()
+                        continue
+                    if byte == 0x04:  # EOT
+                        self._log_info("ASTM EOT received")
+                        continue
+                    buffer += chr(byte)
 
                 # HL7 over serial (MLLP-style terminator)
                 if "\x1c" in buffer:
@@ -130,6 +138,7 @@ class UnifiedListener:
                     if raw_message.strip():
                         self._log_raw(raw_message)
                         self._process_message(raw_message, source="serial")
+                        self._send_serial_ack()
 
     def _handle_connection(self, conn):
         conn.settimeout(3.0)
@@ -267,6 +276,14 @@ class UnifiedListener:
     def _send_astm_ack(self, conn):
         try:
             conn.sendall(b"\x06")
+        except Exception:
+            pass
+
+    def _send_serial_ack(self) -> None:
+        if not self._serial:
+            return
+        try:
+            self._serial.write(b"\x06")
         except Exception:
             pass
 
