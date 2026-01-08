@@ -11,11 +11,14 @@ def _normalize_code(raw_code: str) -> str:
         return ""
     parts = [part for part in raw_code.split("^") if part]
     if not parts:
-        return raw_code.strip().lower()
+        cleaned = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", raw_code)
+        return cleaned.strip().lower()
     for part in parts:
-        if any(char.isalpha() for char in part):
-            return part.strip().lower()
-    return parts[-1].strip().lower()
+        cleaned = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", part)
+        if any(char.isalpha() for char in cleaned):
+            return cleaned.strip().lower()
+    cleaned = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", parts[-1])
+    return cleaned.strip().lower()
 
 def _strip_controls(message: str) -> str:
     return (
@@ -160,8 +163,11 @@ def parse_message(msg: bytes, machine_id: str, param_map: dict) -> List[Normaliz
 
     if protocol == "HL7":
         return parse_hl7(msg, machine_id, param_map)
-    elif protocol == "ASTM":
-        return parse_astm(msg, machine_id, param_map)
-    else:
+
+    results = parse_astm(msg, machine_id, param_map)
+    if results:
+        return results
+
+    if protocol != "ASTM":
         print(f"[parser]  Unknown protocol for machine {machine_id}")
-        return []
+    return results

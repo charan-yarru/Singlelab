@@ -1,6 +1,7 @@
+import datetime
 import socket
 import threading
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
 import serial
 
@@ -224,6 +225,13 @@ class UnifiedListener:
     def _process_message(self, message: str, source: str):
         raw_bytes = message.encode("utf-8", errors="ignore")
         protocol = parser.detect_protocol(raw_bytes)
+
+        if protocol == "ASTM":
+            sample_id = self._extract_astm_query_sample_id(message)
+            if sample_id and source == "serial":
+                self._handle_astm_query(sample_id)
+                return
+
         results = parser.parse_message(raw_bytes, str(self.machine_id or ""), self.param_map)
 
         for result in results:
@@ -261,6 +269,108 @@ class UnifiedListener:
             conn.sendall(b"\x06")
         except Exception:
             pass
+
+    def _strip_controls(self, message: str) -> str:
+        return (
+            message.replace("\x02", "")
+            .replace("\x03", "")
+            .replace("\x04", "")
+            .replace("\x05", "")
+            .replace("\x1c", "")
+        )
+
+    def _strip_frame_prefix(self, segment: str) -> str:
+        while segment and segment[0].isdigit():
+            segment = segment[1:]
+        return segment
+
+    def _extract_astm_query_sample_id(self, message: str) -> Optional[str]:
+        cleaned = self._strip_controls(message)
+        for line in cleaned.splitlines():
+            line = self._strip_frame_prefix(line.strip())
+            if not line.startswith("Q|"):
+                continue
+            fields = line.split("|")
+            if len(fields) < 3:
+                continue
+            raw = fields[2]
+            for part in raw.split("^"):
+                part = part.strip()
+                if part and part.isdigit():
+                    return part
+            return raw.strip() or None
+        return None
+
+    def _handle_astm_query(self, sample_id: str) -> None:
+        tests = self.db.get_pending_tests(sample_id)
+        instrument_tests = self._map_lis_to_instrument_tests(tests)
+        self._log_info(
+            f"ASTM query for {sample_id}: {len(instrument_tests)} tests"
+        )
+        if not self._serial:
+            return
+
+        response_text = self._build_astm_order_response(sample_id, instrument_tests)
+        frames = self._build_astm_frames(response_text)
+        try:
+            for frame in frames:
+                self._serial.write(frame)
+            self._serial.write(b"\x04")
+        except Exception as exc:
+            self._log_error(f"Failed to send ASTM response: {exc}")
+
+    def _map_lis_to_instrument_tests(self, lis_tests: List[str]) -> List[str]:
+        pairs = self.db.get_machine_param_pairs(str(self.machine_id or ""))
+        lis_to_instr = {}
+        instr_to_lis = {}
+        for row in pairs:
+            instr = (row.get("param_code") or "").strip()
+            lis = (row.get("lis_code") or "").strip()
+            if instr and lis:
+                instr_to_lis[instr.lower()] = lis
+                lis_to_instr[lis.lower()] = instr
+
+        mapped = []
+        for lis in lis_tests:
+            key = (lis or "").strip().lower()
+            if not key:
+                continue
+            if key in lis_to_instr:
+                mapped.append(lis_to_instr[key])
+            elif key in instr_to_lis:
+                mapped.append(key)
+        return mapped
+
+    def _build_astm_order_response(self, sample_id: str, tests: List[str]) -> str:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        test_field = "\\".join(tests)
+        lines = [
+            "H|\\^&|||LIS|||||||P|1",
+            "P|1",
+            f"O|1|{sample_id}||{test_field}|R|{timestamp}|||||||||O",
+            "L|1|N",
+        ]
+        return "\r".join(lines) + "\r"
+
+    def _build_astm_frames(self, payload: str) -> List[bytes]:
+        max_len = 240
+        frames = []
+        seq = 1
+        text = payload
+        while text:
+            chunk = text[:max_len]
+            text = text[max_len:]
+            seq_char = str(seq % 8)
+            body = f"{seq_char}{chunk}"
+            checksum = self._astm_checksum(body.encode("ascii", errors="ignore"))
+            frame = b"\x02" + body.encode("ascii", errors="ignore") + b"\x03" + checksum + b"\r\n"
+            frames.append(frame)
+            seq += 1
+        return frames
+
+    def _astm_checksum(self, data: bytes) -> bytes:
+        total = sum(data) % 256
+        return f"{total:02X}".encode("ascii")
 
     def _update_status(self, status):
         if self.status_callback:

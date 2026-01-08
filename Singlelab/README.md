@@ -16,11 +16,11 @@ python -m venv .venv; .\.venv\Scripts\Activate.ps1
 pip install -r backend/requirements.txt
 ```
 
-2) Start the backend now
+2) Start the backend now (uses config/settings.json server.host/server.port)
 
 ```powershell
 # from repository root
-python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+python run_server.py
 ```
 
 3) Build the frontend and copy the files to backend static dir

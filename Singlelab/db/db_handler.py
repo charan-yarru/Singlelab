@@ -246,7 +246,97 @@ class DBHandler:
             if not key or not val:
                 continue
             mapping[key.lower()] = val
+
+        def _score(keys):
+            score = 0
+            for key in keys:
+                if key and key.isalnum() and len(key) <= 5:
+                    score += 1
+            return score
+
+        current_score = _score(mapping.keys())
+        swapped = {value.lower(): key for key, value in mapping.items() if value}
+        swapped_score = _score(swapped.keys())
+        if swapped and swapped_score > current_score:
+            return swapped
         return mapping
+
+    # ------------------------------------------------------------------
+    def get_machine_param_pairs(self, machine_id: str) -> List[Dict[str, str]]:
+        """
+        Return raw MachineParam pairs for a machine.
+
+        Columns:
+          - ParamCode (instrument code)
+          - MachineParamId (LIS parameter code)
+        """
+        if not machine_id:
+            return []
+
+        sql = """
+        SELECT
+            CAST(ParamCode AS NVARCHAR(255)) AS param_code,
+            CAST(MachineParamId AS NVARCHAR(255)) AS lis_code
+        FROM MachineParam
+        WHERE MachineId = ?
+        """
+        try:
+            conn = self.get_connection()
+        except Exception as exc:
+            print(f"[DBHandler] Cannot connect to database: {exc}")
+            return []
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql, (machine_id,))
+            rows = self._fetch_dicts(cursor)
+        except Exception as exc:
+            print(f"[DBHandler] Failed fetching MachineParam pairs for {machine_id}: {exc}")
+            return []
+        finally:
+            cursor.close()
+
+        return rows or []
+
+    # ------------------------------------------------------------------
+    def get_pending_tests(self, sample_id: str) -> List[str]:
+        """Return LIS test codes for a sample where result is NULL/empty."""
+        if not sample_id:
+            return []
+
+        table = self._schema.get("lab_results_table", "LAB_RESULTS")
+        sample_col = self._schema.get("sample_id_col", "sample_id")
+        code_col = self._schema.get("param_code_col", "parameter_code")
+        result_col = self._schema.get("result_col", "result")
+
+        sql = f"""
+        SELECT DISTINCT CAST({code_col} AS NVARCHAR(255)) AS test_code
+        FROM {table}
+        WHERE {sample_col} = ?
+          AND ({result_col} IS NULL OR LTRIM(RTRIM(CAST({result_col} AS NVARCHAR(255)))) = '')
+        """
+        try:
+            conn = self.get_connection()
+        except Exception as exc:
+            print(f"[DBHandler] Cannot connect to database: {exc}")
+            return []
+
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql, (sample_id,))
+            rows = self._fetch_dicts(cursor)
+        except Exception as exc:
+            print(f"[DBHandler] Failed fetching pending tests for {sample_id}: {exc}")
+            return []
+        finally:
+            cursor.close()
+
+        tests = []
+        for row in rows:
+            code = (row.get("test_code") or "").strip()
+            if code:
+                tests.append(code)
+        return tests
 
     # ------------------------------------------------------------------
     def update_lab_result(self, result: NormalizedResult) -> None:

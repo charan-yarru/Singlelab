@@ -23,5 +23,10 @@
     "to": [
       "charan.y@m16labs.com"
     ]
+  },
+  "server": {
+    "host": "127.0.0.2",
+    "port": 8765,
+    "reload": false
   }
 }
