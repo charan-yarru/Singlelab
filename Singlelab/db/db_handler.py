@@ -241,24 +241,16 @@ class DBHandler:
         # Build a case-insensitive map
         mapping: Dict[str, str] = {}
         for row in rows:
-            key = (row.get("param_code") or "").strip()
-            val = (row.get("lis_code") or "").strip()
-            if not key or not val:
-                continue
-            mapping[key.lower()] = val
-
-        def _score(keys):
-            score = 0
-            for key in keys:
-                if key and key.isalnum() and len(key) <= 5:
-                    score += 1
-            return score
-
-        current_score = _score(mapping.keys())
-        swapped = {value.lower(): key for key, value in mapping.items() if value}
-        swapped_score = _score(swapped.keys())
-        if swapped and swapped_score > current_score:
-            return swapped
+            param_code = (row.get("param_code") or "").strip()
+            machine_code = (row.get("lis_code") or "").strip()
+            if param_code:
+                key = param_code.lower()
+                if key not in mapping:
+                    mapping[key] = param_code
+            if machine_code:
+                key = machine_code.lower()
+                if key not in mapping and param_code:
+                    mapping[key] = param_code
         return mapping
 
     # ------------------------------------------------------------------
