@@ -11,13 +11,13 @@ def _normalize_code(raw_code: str) -> str:
         return ""
     parts = [part for part in raw_code.split("^") if part]
     if not parts:
-        cleaned = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", raw_code)
+        cleaned = re.sub(r"^[^A-Za-z0-9#%]+|[^A-Za-z0-9#%]+$", "", raw_code)
         return cleaned.strip().lower()
     for part in parts:
-        cleaned = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", part)
+        cleaned = re.sub(r"^[^A-Za-z0-9#%]+|[^A-Za-z0-9#%]+$", "", part)
         if any(char.isalpha() for char in cleaned):
             return cleaned.strip().lower()
-    cleaned = re.sub(r"^[^A-Za-z0-9]+|[^A-Za-z0-9]+$", "", parts[-1])
+    cleaned = re.sub(r"^[^A-Za-z0-9#%]+|[^A-Za-z0-9#%]+$", "", parts[-1])
     return cleaned.strip().lower()
 
 def _strip_controls(message: str) -> str:
