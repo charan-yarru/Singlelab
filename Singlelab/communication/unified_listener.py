@@ -104,41 +104,67 @@ class UnifiedListener:
         )
         self._log_info(f"Unified serial listener on {self.comm_port} with {self.settings}")
 
-        buffer = ""
+        hl7_buf = bytearray()
+        astm_frames = []
+        in_frame = False
+        expecting_checksum = 0
+        frame_buf = bytearray()
+        astm_mode = False
+
         while self.running:
             if self._serial.in_waiting > 0:
                 chunk = self._serial.read(self._serial.in_waiting)
                 for byte in chunk:
                     if byte == 0x05:  # ENQ
+                        astm_mode = True
                         self._log_info("ASTM ENQ received")
                         self._send_serial_ack()
                         continue
                     if byte == 0x04:  # EOT
                         self._log_info("ASTM EOT received")
+                        if astm_frames:
+                            message = "\r".join(astm_frames)
+                            self._log_raw(message)
+                            self._process_message(message, source="serial")
+                            astm_frames = []
+                        astm_mode = False
                         continue
-                    buffer += chr(byte)
 
-                # HL7 over serial (MLLP-style terminator)
-                if "\x1c" in buffer:
-                    parts = buffer.split("\x1c")
-                    buffer = parts[-1]
-                    for part in parts[:-1]:
-                        message = part.strip("\x0b\r\n")
+                    if astm_mode:
+                        if expecting_checksum:
+                            expecting_checksum -= 1
+                            if expecting_checksum == 0:
+                                if frame_buf:
+                                    astm_frames.append(
+                                        frame_buf.decode("utf-8", errors="ignore")
+                                    )
+                                    frame_buf = bytearray()
+                                self._send_serial_ack()
+                            continue
+
+                        if byte in (0x0d, 0x0a):  # CR/LF
+                            continue
+                        if byte == 0x02:  # STX
+                            in_frame = True
+                            frame_buf = bytearray()
+                            continue
+                        if in_frame and byte in (0x03, 0x17):  # ETX/ETB
+                            in_frame = False
+                            expecting_checksum = 2
+                            continue
+                        if in_frame:
+                            frame_buf.append(byte)
+                        continue
+
+                    # HL7 over serial (MLLP-style terminator)
+                    hl7_buf.append(byte)
+                    if byte == 0x1c:  # FS
+                        message = hl7_buf.decode("utf-8", errors="ignore")
+                        message = message.strip("\x0b\r\n\x1c")
                         if message:
                             self._log_raw(message)
                             self._process_message(message, source="serial")
-                    continue
-
-                # ASTM framing (ETX/EOT terminators)
-                while True:
-                    split_result = self._split_message(buffer)
-                    if not split_result:
-                        break
-                    raw_message, buffer = split_result
-                    if raw_message.strip():
-                        self._log_raw(raw_message)
-                        self._process_message(raw_message, source="serial")
-                        self._send_serial_ack()
+                        hl7_buf = bytearray()
 
     def _handle_connection(self, conn):
         conn.settimeout(3.0)
