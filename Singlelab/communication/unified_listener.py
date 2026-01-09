@@ -355,8 +355,7 @@ class UnifiedListener:
 
         response_text = self._build_astm_order_response(sample_id, instrument_tests)
         self._log_info(f"ASTM response for {sample_id}: {instrument_tests}")
-        self._log_debug(f"ASTM RESPONSE START
-{response_text}ASTM RESPONSE END")
+        self._log_debug(f"ASTM RESPONSE START\n{response_text}ASTM RESPONSE END")
         frames = self._build_astm_frames(response_text)
         try:
             for frame in frames:
