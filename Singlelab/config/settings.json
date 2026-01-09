@@ -4,7 +4,7 @@
     "server": "localhost",
     "database": "INTERFACE",
     "username": "sa",
-    "password": "Admin@123"
+    "password": "admin@123"
   },
   "logging": {
     "log_dir": "logs",
