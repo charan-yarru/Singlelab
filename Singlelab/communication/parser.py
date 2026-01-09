@@ -87,7 +87,10 @@ def parse_astm(msg: bytes, machine_id: str, param_map: dict) -> List[NormalizedR
     results = []
     sample_id = ""
 
-    is_astm = any(record.strip().startswith(("H|", "P|", "O|", "R|", "L|", "C|", "M|")) for record in records)
+    is_astm = any(
+        _strip_frame_prefix(record.strip()).startswith(("H|", "P|", "O|", "R|", "L|", "C|", "M|"))
+        for record in records
+    )
     if not is_astm:
         return _parse_plain_text(records, machine_id, param_map)
 
